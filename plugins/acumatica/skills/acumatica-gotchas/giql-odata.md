@@ -51,6 +51,19 @@ GI return nothing / the wrong columns. See the tag legend in [SKILL.md](./SKILL.
 - **Do:** after fixing a GI mapping/grant, **flush the cache** for that key; and prefer a cache layer
   that does **not** cache empty results (so a transient miss self-heals next request).
 
+### `InventoryQuantityAvailable` has no per-location breakdown `[UNIVERSAL]`
+- The `InventoryQuantityAvailable` inquiry returns only `InventoryID` + `QtyAvailable` — no per-warehouse/
+  per-location rows. For bin-level on-hand (stock check by location, cycle counts, put-away), ride a **GI**
+  over the location-contents inquiry instead.
+- *Verified live: 25R2.*
+
+### The Acumatica MCP reads a STALE / divergent snapshot — don't verify writes through it `[CLAUDE]`
+- The Acumatica MCP server can lag the live tenant: `LastModifiedDateTime` may not advance after a write,
+  and fields can read differently than what the API just wrote. It's fine for **schema/shape exploration**,
+  but **verify writes by reading them back through the same contract API you wrote with**, not the MCP.
+- The MCP connection is also **per-session** — it can be dead in one client session while another works
+  (separate sockets); a "not connected" / "token refresh failed" usually needs a session restart.
+
 ### Column set of a GI is `[TENANT]` — confirm per instance
 - A GI's exact **name and column set** are instance configuration. Never hardcode GI names in code —
   read them from config/env. Confirm the columns live per tenant before depending on them.

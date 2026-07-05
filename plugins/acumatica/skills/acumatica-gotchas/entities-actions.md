@@ -82,3 +82,10 @@ Contract-based REST entity/field/action traps. See the tag legend in [SKILL.md](
 - Access is granted **one resource at a time** — each form (e.g. the PO form, the Employee form) and
   **each GI separately**. A missing grant → **403** (or 403 on OData once Basic auth itself is accepted).
 - **Do:** when a call 403s, suspect a missing grant on that specific resource before anything else.
+
+### Physical-inventory entity names are non-obvious `[UNIVERSAL]`
+- The count entity is **`PhysicalInventoryCount`** — a bare `PhysicalInventory` entity does **not** exist.
+- **Finishing a count is on a *different* entity:** `PhysicalInventoryReview` → action `FinishCounting`,
+  then `CompletePhysicalInventory` posts the variances. `Finish` on the count entity 404s. (List-GET on
+  `PhysicalInventoryCount` also `CannotOptimize`s — use a keyed GET.)
+- *Verified live: 25R2.*

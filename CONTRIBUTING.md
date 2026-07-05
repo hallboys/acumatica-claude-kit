@@ -2,6 +2,33 @@
 
 How to add, edit, and ship knowledge so it stays accurate, lean, and safe to reuse.
 
+## Consuming vs contributing (the workflow)
+
+**Consume everywhere; contribute from the source.**
+
+- **Consume:** install this plugin at user scope (`/plugin install acumatica@acumatica-claude-kit`).
+  It then auto-loads in *every* repo whenever Claude works with Acumatica. Consuming repos do nothing else.
+- **Contribute:** always edit **this source repo** (a clone you can push), then push. The *installed*
+  copy in other repos lives in a managed plugin cache that is **overwritten on every
+  `/plugin marketplace update`** — edits made there never reach git and get wiped. So run
+  `/acumatica-learn` **in this repo**, not inside a consumer project.
+
+**Three planes — keep them apart:**
+
+| Plane | Example | Where |
+|---|---|---|
+| Universal platform behavior | "logout frees a seat; revocation doesn't" | **this kit** (`[UNIVERSAL]`) |
+| Your org's instance config | GI names, endpoint name, warehouse→branch map | a **separate private** org kit — never here |
+| Secrets | passwords, client secrets, tokens | a secret store (e.g. Workers secrets) — never any repo |
+
+This kit is `[UNIVERSAL]`-only; the identifier scrub (below) is what enforces that. Keep org config in a
+private companion kit and secrets in a secret store.
+
+**Harvesting a repo that already has learnings:** to lift portable lessons out of a project that
+accumulated them, open a Claude session with cwd = **this** repo, point it at the other repo's docs
+(Claude can read any absolute path), and have it extract → classify → scrub → append here. Doing it from
+this repo guarantees edits land where you push (not in a throwaway plugin cache).
+
 ## Where things live
 
 ```
