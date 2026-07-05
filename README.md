@@ -12,8 +12,8 @@ behavior from one instance's configuration. This kit does that separation explic
 
 One plugin, **`acumatica`**, containing:
 
-- **`gotchas`** skill — model-invoked whenever Claude works with Acumatica. An index
-  ([SKILL.md](plugins/acumatica/skills/gotchas/SKILL.md)) plus topic files:
+- **`acumatica-gotchas`** skill — model-invoked whenever Claude works with Acumatica. An index
+  ([SKILL.md](plugins/acumatica/skills/acumatica-gotchas/SKILL.md)) plus topic files:
   auth/sessions/seats, entities/fields/actions, GIQL/OData, writes/idempotency, and the
   universal-vs-tenant classification rule.
 - **`/acumatica-learn`** command — user-invoked; captures a new lesson into the right topic file,
@@ -29,7 +29,7 @@ Every entry is tagged:
 - **`[CLAUDE]`** — a Claude Code / Acumatica-MCP tooling note.
 
 This tagging is what makes the kit safe to reuse. See
-[reference-vs-tenant.md](plugins/acumatica/skills/gotchas/reference-vs-tenant.md).
+[reference-vs-tenant.md](plugins/acumatica/skills/acumatica-gotchas/reference-vs-tenant.md).
 
 ## Install
 

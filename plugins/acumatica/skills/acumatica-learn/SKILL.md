@@ -7,17 +7,17 @@ disable-model-invocation: true
 # Capture an Acumatica learning
 
 The user is recording a new Acumatica gotcha / tripwire / rule. Turn what they describe into a
-well-formed entry and append it to the right topic file in the `gotchas` skill.
+well-formed entry and append it to the right topic file in the `acumatica-gotchas` skill.
 
 ## Steps
 
 1. **Locate the topic files.** They live alongside this command, under the sibling skill:
-   `../gotchas/` → `auth-sessions.md`, `entities-actions.md`, `giql-odata.md`,
+   `../acumatica-gotchas/` → `auth-sessions.md`, `entities-actions.md`, `giql-odata.md`,
    `writes-idempotency.md`, `reference-vs-tenant.md`. Read the target file first so the new entry
    matches the existing style and isn't a duplicate (if it duplicates, refine the existing entry
    instead of adding a second).
 
-2. **Classify it** using `../gotchas/reference-vs-tenant.md`:
+2. **Classify it** using `../acumatica-gotchas/reference-vs-tenant.md`:
    - `[UNIVERSAL]` — Acumatica platform/API behavior (portable).
    - `[TENANT]` — instance-specific config/data (record the *lesson*, never the secret/value).
    - `[CLAUDE]` — a Claude Code / Acumatica-MCP tooling note.
@@ -42,7 +42,7 @@ well-formed entry and append it to the right topic file in the `gotchas` skill.
 
 ## Notes
 - If none of the topic files fit, propose a new topic file and add it to the index in
-  `../gotchas/SKILL.md`.
+  `../acumatica-gotchas/SKILL.md`.
 - Prefer editing/strengthening an existing entry over adding a near-duplicate — keep the base lean.
 - After editing, remind the user that a new plugin version + `git push` (and teammates running
   `/plugin marketplace update`) is how the change propagates. See `CONTRIBUTING.md`.

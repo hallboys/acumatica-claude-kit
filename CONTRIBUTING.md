@@ -8,7 +8,7 @@ How to add, edit, and ship knowledge so it stays accurate, lean, and safe to reu
 .claude-plugin/marketplace.json              # marketplace catalog (lists the plugin)
 plugins/acumatica/
   .claude-plugin/plugin.json                 # plugin manifest (bump "version" on release)
-  skills/gotchas/
+  skills/acumatica-gotchas/
     SKILL.md                                  # index + tag legend (update when adding a topic file)
     auth-sessions.md
     entities-actions.md
@@ -24,7 +24,7 @@ Easiest: run **`/acumatica-learn`** inside Claude Code and describe the lesson �
 below for you. To do it by hand:
 
 1. **Pick the topic file** it best fits. Read it first to avoid duplicates.
-2. **Classify** with [reference-vs-tenant.md](plugins/acumatica/skills/gotchas/reference-vs-tenant.md):
+2. **Classify** with [reference-vs-tenant.md](plugins/acumatica/skills/acumatica-gotchas/reference-vs-tenant.md):
    `[UNIVERSAL]`, `[TENANT]`, or `[CLAUDE]`. Split gray-zone entries (behavior universal, value tenant).
 3. **Scrub identifiers** (see below).
 4. **Append** using the entry template:
@@ -50,8 +50,8 @@ below for you. To do it by hand:
   each topic file skimmable — it's loaded into a model's context on demand, so lean beats exhaustive.
 - **One concept per entry.** Symptom → cause → do. If a lesson spans topics, put it in the best-fit
   file and cross-reference.
-- **New topic file?** Create it under `skills/gotchas/`, then add it to the index list in
-  `skills/gotchas/SKILL.md` so Claude knows it exists.
+- **New topic file?** Create it under `skills/acumatica-gotchas/`, then add it to the index list in
+  `skills/acumatica-gotchas/SKILL.md` so Claude knows it exists.
 
 ## Shipping an update (propagation)
 

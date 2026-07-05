@@ -1,5 +1,5 @@
 ---
-name: gotchas
+name: acumatica-gotchas
 description: >-
   Acumatica ERP integration gotchas, tripwires, and hard-won rules for
   contract-based REST and OData Generic Inquiries (GIs). Use whenever working
