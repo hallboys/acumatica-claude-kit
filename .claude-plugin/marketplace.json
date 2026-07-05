@@ -1,0 +1,14 @@
+{
+  "name": "acumatica-claude-kit",
+  "owner": {
+    "name": "Sarat Vemuri"
+  },
+  "description": "A Claude Code marketplace of Acumatica ERP integration knowledge — gotchas, tripwires, and hard-won rules for contract-based REST and OData Generic Inquiries.",
+  "plugins": [
+    {
+      "name": "acumatica",
+      "source": "./plugins/acumatica",
+      "description": "Acumatica integration gotchas + a /acumatica:learn capture command. Portable across repos; every entry is tagged UNIVERSAL vs TENANT so instance-specific facts are never mistaken for platform truths."
+    }
+  ]
+}
