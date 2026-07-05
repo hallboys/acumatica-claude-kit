@@ -15,14 +15,23 @@ Maintain the `acumatica-gotchas` knowledge base. This handles **both** ways of c
 
 Same job either way: classify → scrub → append well-formed entries.
 
-## ⚠️ Where to write (critical)
+## ⚠️ Where to write (critical) — locate the writable clone
 
-Edit the topic files **in the current repository checkout of this kit** — locate them under the working
-directory (e.g. glob `**/skills/acumatica-gotchas/*.md`). **NEVER edit the installed plugin copy**: a slash
-command loaded from an installed plugin resolves to a read-only cache that `/plugin marketplace update`
-overwrites, so edits there never reach git. **If you cannot find the kit's files under the current working
-directory, STOP** and tell the user to run this from a clone of the `acumatica-claude-kit` repo (contributions
-only land when made in the git checkout you push).
+Contributions must land in a **git checkout the user can push**, NEVER the installed plugin cache (a slash
+command loaded from an installed plugin resolves to a read-only copy that `/plugin marketplace update`
+overwrites). Find the clone in this order:
+
+1. **`$ACUMATICA_KIT_DIR`** — run `echo "$ACUMATICA_KIT_DIR"`; if set, edit the topic files there. This lets
+   a contributor capture from ANY session, wherever they cloned.
+2. **The current checkout** — else, if the working directory is inside a clone of this kit (find
+   `skills/acumatica-gotchas/*.md` under cwd, in a repo whose `.claude-plugin/marketplace.json` names this
+   plugin), edit those.
+3. **Otherwise STOP** — ask the user for their clone path, then edit there. Offer to persist it so the
+   from-anywhere loop works next time: add `export ACUMATICA_KIT_DIR="<path>"` to their shell profile
+   (`~/.zshrc` / `~/.bashrc`). Do not write until you have a real git-checkout path.
+
+This is portable across contributors: each person sets their own `ACUMATICA_KIT_DIR` (or just runs from their
+clone) — no shared/hardcoded path.
 
 ## Steps (per lesson)
 
@@ -57,5 +66,6 @@ only land when made in the git checkout you push).
 ## Notes
 - If none of the topic files fit, propose a new one and add it to the index in `skills/acumatica-gotchas/SKILL.md`.
 - Prefer strengthening an existing entry over a near-duplicate — keep files skimmable (they load into context).
-- After editing, remind the user to propagate: bump `plugin.json` `version`, `git push`, teammates run
-  `/plugin marketplace update`. See `CONTRIBUTING.md`.
+- After editing, propagate with the repo's one-command helper: **`"$ACUMATICA_KIT_DIR"/publish.sh "msg"`**
+  (or `./publish.sh "msg"` from the clone) — it patch-bumps `plugin.json`, commits, and pushes. Teammates then
+  run `/plugin marketplace update`. See `CONTRIBUTING.md`.

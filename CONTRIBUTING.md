@@ -8,10 +8,23 @@ How to add, edit, and ship knowledge so it stays accurate, lean, and safe to reu
 
 - **Consume:** install this plugin at user scope (`/plugin install acumatica@acumatica-claude-kit`).
   It then auto-loads in *every* repo whenever Claude works with Acumatica. Consuming repos do nothing else.
-- **Contribute:** always edit **this source repo** (a clone you can push), then push. The *installed*
-  copy in other repos lives in a managed plugin cache that is **overwritten on every
-  `/plugin marketplace update`** — edits made there never reach git and get wiped. So run
-  `/acumatica-learn` **in this repo**, not inside a consumer project.
+- **Contribute:** always edit **a clone you can push**, then push. The *installed* copy in other repos lives
+  in a managed plugin cache that is **overwritten on every `/plugin marketplace update`** — edits there never
+  reach git and get wiped.
+
+### Contributor setup (one-time, per person — portable)
+
+Anyone can contribute; nothing depends on a shared directory layout:
+
+1. **Clone** this repo anywhere: `git clone https://github.com/hallboys/acumatica-claude-kit`.
+2. *(Optional but recommended)* point your tools at it so you can capture from **any** session:
+   add `export ACUMATICA_KIT_DIR="/your/path/to/acumatica-claude-kit"` to your shell profile
+   (`~/.zshrc` / `~/.bashrc`).
+
+Then to contribute you can either **run `/acumatica-learn` from inside your clone**, or — if `ACUMATICA_KIT_DIR`
+is set — capture from any session (the command self-locates your clone via that var, falls back to the current
+checkout, and asks for your path if it finds neither). Either way edits land in *your* git checkout, never the
+read-only plugin cache.
 
 **Three planes — keep them apart:**
 
@@ -82,12 +95,15 @@ below for you. To do it by hand:
 
 ## Shipping an update (propagation)
 
-Editing the files locally updates *your* installed copy on the next `/reload-plugins`. For teammates:
+One command from your clone does the bump + commit + push:
 
-1. Bump `"version"` in `plugins/acumatica/.claude-plugin/plugin.json` (semver: patch for entry
-   tweaks, minor for new topic files/commands).
-2. Commit and `git push`.
-3. Teammates run `/plugin marketplace update acumatica-claude-kit` to pull it.
+```
+./publish.sh "what changed"        # or  "$ACUMATICA_KIT_DIR"/publish.sh "what changed"
+```
+
+It patch-bumps `plugin.json`, commits, and pushes. (Bump the **minor** by hand for a new topic file or
+command.) Teammates then pull it with `/plugin marketplace update acumatica-claude-kit` + `/reload-plugins`
+— needed only to *use* the new knowledge locally; your push already shares it.
 
 ## Consolidation cadence
 
