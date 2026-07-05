@@ -42,7 +42,7 @@ Then reload so the skill is active this session: `/reload-plugins` (or restart C
 
 **From a git host (teammates / other machines):**
 ```
-/plugin marketplace add <owner>/acumatica-claude-kit
+/plugin marketplace add hallboys/acumatica-claude-kit
 /plugin install acumatica@acumatica-claude-kit
 ```
 
@@ -65,5 +65,4 @@ tenant-identifying values.
 
 ## License
 
-See [LICENSE](LICENSE). *(Choose and confirm a license before publishing publicly — MIT is a good
-default for broad reuse.)*
+[Apache License 2.0](LICENSE) © 2026 Hall Boys, Inc. See [NOTICE](NOTICE).
