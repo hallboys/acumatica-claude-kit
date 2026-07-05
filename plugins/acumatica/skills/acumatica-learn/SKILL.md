@@ -1,5 +1,5 @@
 ---
-name: learn
+name: acumatica-learn
 description: Capture a new Acumatica learning into the gotchas knowledge base. User-invoked only.
 disable-model-invocation: true
 ---

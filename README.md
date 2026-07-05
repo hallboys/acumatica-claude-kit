@@ -16,7 +16,7 @@ One plugin, **`acumatica`**, containing:
   ([SKILL.md](plugins/acumatica/skills/gotchas/SKILL.md)) plus topic files:
   auth/sessions/seats, entities/fields/actions, GIQL/OData, writes/idempotency, and the
   universal-vs-tenant classification rule.
-- **`/acumatica:learn`** command — user-invoked; captures a new lesson into the right topic file,
+- **`/acumatica-learn`** command — user-invoked; captures a new lesson into the right topic file,
   correctly tagged and identifier-scrubbed.
 
 ## The core idea: `[UNIVERSAL]` vs `[TENANT]`

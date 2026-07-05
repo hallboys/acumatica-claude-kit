@@ -15,12 +15,12 @@ plugins/acumatica/
     giql-odata.md
     writes-idempotency.md
     reference-vs-tenant.md                    # the classification rule — read before editing
-  skills/learn/SKILL.md                       # the /acumatica:learn capture command
+  skills/acumatica-learn/SKILL.md                       # the /acumatica-learn capture command
 ```
 
 ## Adding a learning
 
-Easiest: run **`/acumatica:learn`** inside Claude Code and describe the lesson — it does the steps
+Easiest: run **`/acumatica-learn`** inside Claude Code and describe the lesson — it does the steps
 below for you. To do it by hand:
 
 1. **Pick the topic file** it best fits. Read it first to avoid duplicates.

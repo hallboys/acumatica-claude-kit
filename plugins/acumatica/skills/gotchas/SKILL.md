@@ -55,6 +55,6 @@ shifts across releases, so an unverified claim is a hypothesis, not a fact.
 
 ## Adding a learning
 
-Run **`/acumatica:learn`** and describe the lesson — it appends a correctly-tagged, version-stamped
+Run **`/acumatica-learn`** and describe the lesson — it appends a correctly-tagged, version-stamped
 entry to the right topic file. See [CONTRIBUTING.md](../../../../CONTRIBUTING.md) for the entry
 template and maintenance cadence.
