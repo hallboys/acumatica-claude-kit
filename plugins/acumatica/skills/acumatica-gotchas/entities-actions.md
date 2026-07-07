@@ -34,6 +34,19 @@ Contract-based REST entity/field/action traps. See the tag legend in [SKILL.md](
 - **Do:** use a **keyed GET** (`/Entity/{key}`) instead of a `$filter` list; for search/lookup by a
   non-key field, ride a **Generic Inquiry** (see [giql-odata.md](./giql-odata.md)).
 
+### `$orderby` can be **silently ignored** on heavy entities — a small `$top` then drops the rows you want `[UNIVERSAL]`
+- On some list-heavy entities (those with computed / BQL-delegate fields — e.g. the **Project** entity),
+  the contract endpoint **ignores `$orderby`** and returns rows in a **fixed ascending key order**.
+  Combined with a broad `substringof` filter and a small `$top`, you get the **lowest-key matches only** —
+  a recently-created, high-key record the user actually wants is **silently dropped past the cap**, so a
+  typeahead "returns nothing" / the-wrong-rows even though the record exists and the filter matches.
+- A **selective** query (full key value) still works because it fits under the cap — which masks the bug
+  in testing and makes it look data-specific.
+- **Do:** don't rely on server-side ordering for these. Fetch a **wide window** and **sort / rank in the
+  app layer** (newest-key-first for time-ordered ids, or a relevance rank: exact > prefix > substring),
+  then cap. Applies to any high-cardinality typeahead (items, vendors, tasks, locations), not just one.
+- *Verified live: 25R2, 2026-07.*
+
 ### The **file-attach path is the record's own `files:put` link template** `[UNIVERSAL]`
 - To attach a file, use the record's `_links["files:put"]` template
   (`/files/{Graph}/{node}/{guid}/{filename}`). The guessed by-id form
@@ -82,6 +95,12 @@ Contract-based REST entity/field/action traps. See the tag legend in [SKILL.md](
 - Access is granted **one resource at a time** — each form (e.g. the PO form, the Employee form) and
   **each GI separately**. A missing grant → **403** (or 403 on OData once Basic auth itself is accepted).
 - **Do:** when a call 403s, suspect a missing grant on that specific resource before anything else.
+- **Diagnostic signature:** a dependent lookup that **returns nothing for a KNOWN-VALID parent** (e.g. a
+  task or cost-code picker empty for a record that provably has children) is usually a **swallowed 403 on
+  the child entity's grant**, not a query/data bug — UIs routinely render a failed lookup as "no results".
+  Confirm the exact query returns data under an **admin** account, then check the **service account's**
+  grant on that child entity. Sibling entities being granted does **not** imply the related one is (grants
+  are per-entity, one at a time).
 
 ### Physical-inventory entity names are non-obvious `[UNIVERSAL]`
 - The count entity is **`PhysicalInventoryCount`** — a bare `PhysicalInventory` entity does **not** exist.
