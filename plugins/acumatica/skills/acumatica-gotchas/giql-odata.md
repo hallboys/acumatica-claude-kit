@@ -40,6 +40,19 @@ GI return nothing / the wrong columns. See the tag legend in [SKILL.md](./SKILL.
 - Filter/`WHERE` on the stored **code** value (e.g. an order type `'RO'`), not the UI **label**
   (`'Normal'`). A label-based filter matches nothing.
 
+### OData GI datetimes are **true UTC** (`…Z`) — the raw feed does NOT localize `[UNIVERSAL]` (display TZ `[TENANT]`)
+- A datetime column over the **raw OData GI feed** comes back as a **true UTC instant** stamped `Z`
+  (e.g. an 8 AM Eastern appointment reads `…T12:00:00Z`). The Acumatica **screen and the GI's
+  *interactive* UI localize** it to the instance display timezone, so *they* show the right wall time —
+  but your code receives raw UTC and must convert itself.
+- **Trap:** pulling the hour/date without converting — e.g. `getHours()` on a runtime whose local zone
+  is already UTC (a Cloudflare Worker, many containers) — renders **every** row off by the UTC offset.
+  It looks correct in the GI UI and stays hidden until a value is compared against the screen.
+- **Do:** treat GI datetimes as UTC; convert to the instance display timezone for display and back to
+  UTC on write, as **exact inverses** so a round-tripped write lands on the slot it started from. The
+  display zone is a single instance-wide value (`[TENANT]`; confirm it's not per-branch/per-record).
+- *Verified live: 25R2, 2026-07.*
+
 ### `substringof` / contains filters can silently match nothing `[UNIVERSAL]`
 - Text-contains filters over GI feeds are finicky (field must be a queryable string column). If a
   `substringof`/`contains` returns nothing where you expect hits, verify the column is exposed as a
@@ -63,6 +76,10 @@ GI return nothing / the wrong columns. See the tag legend in [SKILL.md](./SKILL.
   but **verify writes by reading them back through the same contract API you wrote with**, not the MCP.
 - The MCP connection is also **per-session** — it can be dead in one client session while another works
   (separate sockets); a "not connected" / "token refresh failed" usually needs a session restart.
+- The MCP also **localizes datetimes** while the raw feed delivers **true UTC** (see the datetime entry
+  above) — a time that reads as local wall-clock in the MCP is UTC in the feed your code consumes.
+  Confirm datetime *representation/offset* from the raw feed, not the MCP, or you'll bake in a wrong
+  timezone assumption (this masked a bug where every row rendered off by the UTC offset).
 
 ### Column set of a GI is `[TENANT]` — confirm per instance
 - A GI's exact **name and column set** are instance configuration. Never hardcode GI names in code —
