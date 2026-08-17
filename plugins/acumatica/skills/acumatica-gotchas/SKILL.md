@@ -42,9 +42,9 @@ shifts across releases, so an unverified claim is a hypothesis, not a fact.
   the concurrent-login cap, revocation vs logout, token/session lifetimes, inactivity
   timeout scope, cookie reuse, account lockout, grant-cache flush.
 - **[entities-actions.md](./entities-actions.md)** — per-entity field-name traps, PXAction
-  names (Release / ConfirmShipment / FinishCounting), keyed-GET-not-$filter, the file-attach
-  path, long-op polling, PO number padding, drop-ship detection, mandatory Project, reason-code
-  usage restrictions.
+  names (Release / ConfirmShipment / FinishCounting), the post-Update-IN CorrectShipment lockout,
+  keyed-GET-not-$filter, the file-attach path, long-op polling, PO number padding, drop-ship
+  detection, mandatory Project, reason-code usage restrictions.
 - **[giql-odata.md](./giql-odata.md)** — CannotOptimizeException, why some reads must ride a GI,
   $select+$expand drops, parameter-free GI requirement, parameterized-GI-empty-over-OData,
   MCP column renames, @odata.nextLink paging, empty-result cache poisoning.

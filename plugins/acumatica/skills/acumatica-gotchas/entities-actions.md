@@ -23,6 +23,20 @@ Contract-based REST entity/field/action traps. See the tag legend in [SKILL.md](
   count entity 404s.
 - *Verified live (invoke-tested): 25R2, 2026.*
 
+### The scheduled **Update IN** posting **permanently disables `CorrectShipment`** — the correction window is the schedule gap `[UNIVERSAL]` (cadence `[TENANT]`)
+- The scheduled "Update IN" job posts a confirmed SO shipment's inventory **Issue**: the shipment's
+  `Orders[]` gains `InventoryDocType: "Issue"` + an `InventoryRefNbr`, and status moves
+  **Confirmed → Completed**. From that moment the **Correct Shipment** action on the shipment screen
+  is **disabled/greyed for everyone** — including in the Acumatica UI, not just via the API.
+- Practical consequence: with an hourly Update IN schedule the window to un-confirm is **sub-hour**
+  (observed: shipments confirmed minutes before a batch were locked by it) — so a correction path is
+  dead exactly when problems are usually noticed (later that day).
+- **Do:** don't build an integration "undo a confirm" feature on `CorrectShipment` — it only works
+  inside the window. **After posting, the sanctioned correction path is an inventory Adjustment**,
+  not `CorrectShipment`. If a tenant needs more correction slack, the lever is the **Update IN
+  schedule** (ERP config, `[TENANT]`), not API code.
+- *Verified live: 25R2 Construction, 2026-08.*
+
 ### Long-op **action polling**: strip the endpoint prefix; one long-op per session `[UNIVERSAL]`
 - After invoking an action that returns a long-running-operation `Location`, poll it — but **strip
   the `/entity/{endpointName}/{version}/` prefix** from that Location first, and **wait between polls**.
