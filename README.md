@@ -36,14 +36,14 @@ This tagging is what makes the kit safe to reuse. See
 **Try it locally (from a clone):**
 ```
 /plugin marketplace add ./acumatica-claude-kit
-/plugin install acumatica@acumatica-claude-kit
+/plugin install acumatica-claude-kit@acumatica-claude-kit
 ```
 Then reload so the skill is active this session: `/reload-plugins` (or restart Claude Code).
 
 **From a git host (teammates / other machines):**
 ```
 /plugin marketplace add hallboys/acumatica-claude-kit
-/plugin install acumatica@acumatica-claude-kit
+/plugin install acumatica-claude-kit@acumatica-claude-kit
 ```
 
 **Update later:**

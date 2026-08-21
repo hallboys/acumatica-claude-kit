@@ -1,8 +1,8 @@
 {
-  "name": "acumatica",
+  "name": "acumatica-claude-kit",
   "displayName": "Acumatica Integration Kit",
   "description": "Hard-won Acumatica ERP integration knowledge for contract-based REST + OData Generic Inquiries: auth/session traps, entity/field/action names, GIQL, and write/idempotency gotchas. Model-invoked when working with Acumatica; includes a /acumatica-learn command to capture new lessons.",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "author": {
     "name": "Sarat Vemuri"
   }
