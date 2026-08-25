@@ -16,6 +16,21 @@ gotchas — a mis-fired write posts to the ledger. See the tag legend in [SKILL.
 - *Verified live: 25R2 (a long investigation chased "read-only fields" when the real cause was a
   revoked write role).*
 
+### Some fields are **genuinely unwritable** and discard silently too — same 200, different cause `[UNIVERSAL]`
+- Once the role's write access is confirmed (entry above), a field can *still* accept a `PUT` with **200
+  and no change**. Confirmed case: the **per-line `note` on a physical-inventory count line** — discarded
+  in every payload shape (bare string, `{value}` envelope, alongside a quantity write that DID persist),
+  on **both** PI entities, and it does not read back even when set in the ERP UI. The document **header**
+  note on the same record persists normally.
+- The pattern: a note/annotation field can be exposed on a *detail* row of a document yet be owned by the
+  screen rather than the API. Detail notes on other document types (e.g. receipt lines) do persist — so
+  "detail notes work here" proves nothing about the next entity.
+- **Do:** never accept a 200 as proof. **Read the field back on a fresh GET** before designing around it,
+  and prove it on the *specific* entity + level (header vs line) you intend to write. If it discards,
+  don't build the feature on that field — put the durable record where it demonstrably persists (a header
+  note, a file attachment, or your own store) rather than assuming a payload-shape fix exists.
+- *Verified live: 25R2, 2026-08.*
+
 ### Endpoint **detail collection vs single-object mapping** is per-tenant and silently breaks writes `[UNIVERSAL]` (shape `[TENANT]`)
 - A custom/extended endpoint can map a document's **`Details`** as either a **collection** or a
   **single object**. If the endpoint maps it one way and your payload sends the other, the write fails

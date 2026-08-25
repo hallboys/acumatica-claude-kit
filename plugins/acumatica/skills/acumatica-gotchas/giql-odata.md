@@ -32,6 +32,19 @@ GI return nothing / the wrong columns. See the tag legend in [SKILL.md](./SKILL.
   code actually receives (e.g. a cost-code id shown one way by the MCP, delivered under a plainer
   name in the feed). **Trust the raw feed**; confirm real column names by reading the feed, not the MCP.
 
+### A `$select` projection can be **SLOWER** than no projection on a delegate-heavy detail view `[UNIVERSAL]`
+- The reflex "project only the columns you need, it'll be cheaper" can **invert** on entities whose detail
+  view is full of computed / BQL-delegate fields. Measured on one ~500-line document via a keyed GET:
+  **unprojected ≈ 0.76 s, the same GET with a `$select` ≈ 1.4 s** — the projection nearly doubled it,
+  because naming fields forces per-field evaluation across the whole detail set instead of letting the
+  export path do its bulk thing.
+- **Do:** on these entities, **measure both** rather than assuming. Keep `$select` for the cases it
+  genuinely helps (narrowing a *header* read away from an expensive `$expand`, which is a real and large
+  win), and don't reach for it reflexively on detail rows. Note also that projecting can *break* a read
+  outright when a field isn't a bindable property (some note fields raise a key-not-found), so an
+  unprojected read is often both faster and safer here.
+- *Verified live: 25R2, 2026-08.*
+
 ### `getOData` must follow `@odata.nextLink` `[UNIVERSAL]`
 - OData GI feeds **page**. A reader that ignores `@odata.nextLink` silently truncates. Accumulate all
   pages (a `$top` caller intentionally gets one capped page).

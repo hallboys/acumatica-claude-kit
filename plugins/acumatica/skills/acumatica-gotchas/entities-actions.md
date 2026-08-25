@@ -67,7 +67,12 @@ Contract-based REST entity/field/action traps. See the tag legend in [SKILL.md](
   `PUT /{Entity}/{id}/files/{name}` **404s**.
 - **Gotcha:** `files:put` keys attachments by **filename** — uploading two files with the **same
   name overwrites** (only the last survives). Give each file a **unique name** when attaching several.
-- *Verified live: 25R2.*
+- **Readback gotcha:** listing with `?$expand=files` returns each name **prefixed with the record**
+  (`<Screen Name> (<RefNbr>)\<filename>`) even though the name you `PUT` was bare. So any logic that
+  keys off the existing filenames — "how many `report-N.pdf` are already attached, so what's next?" —
+  matches **nothing** and hands out the same name forever, silently overwriting. **Compare on the
+  basename**, not the returned string.
+- *Verified live: 25R2, 2026-08.*
 
 ### Mandatory `Project` on Inventory documents; non-project uses a sentinel code `[UNIVERSAL]` (code value `[TENANT]`)
 - Every IN document requires a **Project**. Non-project transactions use a **sentinel project code**
@@ -116,9 +121,42 @@ Contract-based REST entity/field/action traps. See the tag legend in [SKILL.md](
   grant on that child entity. Sibling entities being granted does **not** imply the related one is (grants
   are per-entity, one at a time).
 
+### Costing fields on a count line are **empty until the count is finished** `[UNIVERSAL]`
+- A physical-inventory line's **unit cost and extended variance cost are blank while the count is in
+  progress** and are filled when the count is **finished/completed**. Confirmed by comparing the same
+  document in two states: an in-progress count had **0 of N** counted lines carrying a unit cost, a
+  completed one had **all** of them.
+- Why it bites: any logic that grades or prioritizes lines *during* counting — a variance-value
+  threshold, a review queue sorted by dollar impact — reads the field at exactly the point in the
+  lifecycle where it does not exist. Worse, it reads as **absent (`{}`), not `0`**, so a naive
+  "parse to a number, default 0" turns *cost unknown* into *costs nothing* and the distinction vanishes:
+  costed items get silently classed as free.
+- **Do:** for anything evaluated mid-count, source cost from the **item master** instead (see the next
+  entry), and keep `null`/absent distinct from `0` all the way through the logic.
+- *Verified live: 25R2, 2026-08.*
+
+### A stock item has **no single "unit cost"** — pick the basis from its valuation method `[UNIVERSAL]`
+- There is no `UnitCost` property on the item. There are several: **`AverageCost`**, **`LastCost`**,
+  **`MinCost`**, **`MaxCost`**, **`CurrentStdCost`** (plus pending/last standard variants), and a
+  **`ValuationMethod`** that says which one the item is actually valued at.
+- **Do:** choose by the item's own `ValuationMethod` — *Average* → `AverageCost`, *Standard* →
+  `CurrentStdCost`, *FIFO/Specific* → `LastCost` as the closest proxy — and **fall through to whichever
+  field is populated** rather than reporting a costed item as free. Treat "all of them zero/absent" as
+  **unknown**, not as $0; those are different facts and usually deserve different handling.
+- Which method a given catalogue uses is `[TENANT]`; that the choice must be *per item* is not — a
+  catalogue can mix methods.
+- *Verified live: 25R2, 2026-08.*
+
 ### Physical-inventory entity names are non-obvious `[UNIVERSAL]`
 - The count entity is **`PhysicalInventoryCount`** — a bare `PhysicalInventory` entity does **not** exist.
 - **Finishing a count is on a *different* entity:** `PhysicalInventoryReview` → action `FinishCounting`,
   then `CompletePhysicalInventory` posts the variances. `Finish` on the count entity 404s. (List-GET on
   `PhysicalInventoryCount` also `CannotOptimize`s — use a keyed GET.)
+- **The two are the SAME record, projected differently.** A keyed GET on either returns the *identical*
+  header `id` GUID and the *identical* detail-row GUIDs, so a row id read from one is valid in a write to
+  the other. But they expose **different field sets** — only the review-side projection carries the
+  header's warehouse / freeze date / a persisting note, and unit-cost + variance columns on the lines —
+  and even the **bin field is named differently between them** (`Location` vs `LocationID`), per the
+  per-entity naming trap at the top of this file. Read from whichever projection has the fields; write
+  through the one that owns the operation.
 - *Verified live: 25R2.*
