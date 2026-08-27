@@ -6,7 +6,7 @@ How to add, edit, and ship knowledge so it stays accurate, lean, and safe to reu
 
 **Consume everywhere; contribute from the source.**
 
-- **Consume:** install this plugin at user scope (`/plugin install acumatica@acumatica-claude-kit`).
+- **Consume:** install this plugin at user scope (`/plugin install acumatica-claude-kit@acumatica-claude-kit`).
   It then auto-loads in *every* repo whenever Claude works with Acumatica. Consuming repos do nothing else.
 - **Contribute:** always edit **a clone you can push**, then push. The *installed* copy in other repos lives
   in a managed plugin cache that is **overwritten on every `/plugin marketplace update`** — edits there never
