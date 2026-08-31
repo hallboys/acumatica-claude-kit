@@ -117,3 +117,21 @@ The seed content was distilled from real integration work and deliberately strip
 project's specifics. If you port a lesson *from* a proprietary repo, re-run the identifier scrub —
 what's obvious-and-safe in the source repo (a GI name, a warehouse code) is exactly what must not
 land here.
+
+### License boundaries on outside sources
+
+This kit is **Apache-2.0**. Two upstream sources are easy to reach for and must be handled
+differently:
+
+- **`github.com/Acumatica/Acumatica-AI-Resources` — everything outside `Documentation/` is
+  `GPL-3.0-only`.** That includes its skills (`acumatica-integration-diagnostics`,
+  `acumatica-customization-update`, `acumatica-modern-ui-control-builder`) and its PowerShell
+  scripts. GPL is one-way: **do not copy that text, or close paraphrases of it, into this repo.**
+  The overlap with `acumatica-gotchas` makes this a live temptation — read it for ideas, write
+  entries in your own words from your own verification, and cite behavior rather than prose.
+- **Acumatica's official documentation is licensed content, not open content.** In that same repo
+  the `Documentation/` directory is explicitly *excluded* from its GPLv3 and carries an
+  all-rights-reserved notice; the Beacon Portal download is login-gated. Being publicly readable is
+  not redistribution rights. **Cite topics by name** (e.g. "*Preparation of an Inquiry for
+  Exposure* → 'Supporting the OData Specification'") and state the rule in your own words. Do not
+  paste doc prose, tables, or screenshots into entries, and never commit any part of the corpus.

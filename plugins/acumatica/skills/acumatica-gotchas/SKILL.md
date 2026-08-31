@@ -46,8 +46,10 @@ shifts across releases, so an unverified claim is a hypothesis, not a fact.
   keyed-GET-not-$filter, the file-attach path, long-op polling, PO number padding, drop-ship
   detection, mandatory Project, reason-code usage restrictions.
 - **[giql-odata.md](./giql-odata.md)** — CannotOptimizeException, why some reads must ride a GI,
-  $select+$expand drops, parameter-free GI requirement, parameterized-GI-empty-over-OData,
-  MCP column renames, @odata.nextLink paging, empty-result cache poisoning.
+  $select+$expand drops, parameter-free GI requirement, parameterized-GI-empty-over-OData and the
+  `_WithParameters` FunctionImport that does bind them, calculated-column filters returning an
+  empty-body 200, display-name-derived property naming vs undocumented column order, MCP column
+  renames, @odata.nextLink paging, empty-result cache poisoning.
 - **[writes-idempotency.md](./writes-idempotency.md)** — the silent-200-on-revoked-write trap,
   endpoint detail collection-vs-object mapping, idempotency, operator attribution, money precision.
 - **[reference-vs-tenant.md](./reference-vs-tenant.md)** — the classification rule + a checklist

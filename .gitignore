@@ -8,3 +8,10 @@
 .env
 .env.*
 *.local
+
+# Working drafts: announcement/post text staged before publishing. These often
+# quote real instance identifiers while being written, and publish.sh does
+# `git add -A` — so keep them out of a PUBLIC repo by name, not by discipline.
+announcement-drafts.md
+*-drafts.md
+drafts/
