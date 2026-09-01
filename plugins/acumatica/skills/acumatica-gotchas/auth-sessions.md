@@ -44,6 +44,11 @@ exhausting its concurrent-login license. See the tag legend in [SKILL.md](./SKIL
 ### An explicit **`/entity/auth/logout` DOES free the seat** — but does not kill the token `[UNIVERSAL]`
 - Calling `POST /entity/auth/logout` with the bearer (or session cookie) **releases the seat within
   seconds** (returns 204).
+- **The gotcha that hides this:** the request must have an **empty body with an explicit
+  `Content-Length: 0`** header. Without it Acumatica answers **`411 Length Required`**, the seat is
+  never released, and the caller concludes logout "doesn't free the seat" — conflating it with token
+  revocation above, which genuinely doesn't. Two different operations; only revocation has that flaw.
+  *Verified live: 25R2, 2026 (411 without the header, 204 with it).*
 - **Gotcha:** logout does **not** invalidate the token. Re-using that same bearer *after* logout
   immediately mints a **new** session. So only ever log out a bearer you have **stopped using**.
 - **Pattern that keeps you at ~1 seat:** at token renewal, mint the new bearer, publish it as the
