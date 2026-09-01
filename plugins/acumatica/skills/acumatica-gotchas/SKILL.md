@@ -39,7 +39,8 @@ shifts across releases, so an unverified claim is a hypothesis, not a fact.
 ## Topics
 
 - **[auth-sessions.md](./auth-sessions.md)** — OAuth 2.0 ROPC, bearer/session/seat behavior,
-  the concurrent-login cap, revocation vs logout, token/session lifetimes, inactivity
+  the concurrent-login cap, revocation vs logout, the connected app as the ONLY tenant binding
+  under oauth, seat-neutral session refresh, token/session lifetimes, inactivity
   timeout scope, cookie reuse, account lockout, grant-cache flush.
 - **[entities-actions.md](./entities-actions.md)** — per-entity field-name traps, PXAction
   names (Release / ConfirmShipment / FinishCounting), the post-Update-IN CorrectShipment lockout,

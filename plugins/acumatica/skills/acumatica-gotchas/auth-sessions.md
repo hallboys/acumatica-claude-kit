@@ -51,6 +51,43 @@ exhausting its concurrent-login license. See the tag legend in [SKILL.md](./SKIL
   deployment, do the swap under a single-flight lock so exactly one logout fires.
 - *Verified live: 2025 R2, 2026-07 (seat 2→1 after a clean logout with no re-use).*
 
+### A ROPC bearer carries **no tenant identity** on contract REST — the connected app binds it `[UNIVERSAL]`
+- The three transports carry the company very differently, and only one of them is checkable
+  from the request:
+  - **OData GI reads** are pinned by the URL — `/t/{tenant}/api/odata/gi/…`.
+  - **Legacy forms-login** sends `tenant` explicitly in the `/entity/auth/login` body.
+  - **OAuth ROPC** sends **no company at all**. The bearer is company-bound *solely* by the
+    tenant the **connected application** was registered in.
+- **Consequence:** point a client_id/secret pair at the wrong company and you get **correctly
+  scoped GI reads and wrong-company WRITES** — the reads keep working because their tenant is in
+  the URL, so nothing looks broken. Any config-driven readiness check will still report the
+  *configured* tenant name as healthy, because it is only echoing your own config back.
+- This bites hardest where several tenants share a **host** and a service-account **username**
+  (a sandbox next to production), which is exactly when a copy-paste of the wrong secret is
+  easiest and its symptom is least visible.
+- **Do:** assert the binding instead of trusting it. Acumatica mints client ids as
+  **`<guid>@<Tenant>`**, so the suffix is a free, authoritative cross-check — compare it
+  (case-insensitively) against the tenant you believe you are addressing and fail loudly on a
+  mismatch. Treat a missing suffix as *unverifiable*, not as *fine*. Never log or return any part
+  of the id except that suffix; the id itself is a credential, the suffix is just a tenant name.
+- *Verified: 2025 R2, Construction edition, 2026-09.*
+
+### Refreshing a cached session is **not seat-neutral** unless you log the outgoing one out `[UNIVERSAL]`
+- A readiness/preflight check often force-refreshes the service session on purpose: Acumatica
+  **binds rights at session establishment**, so a cached cookie or bearer reports the grants as
+  they stood when it was minted (see the grant-cache entry below). That part is correct.
+- **The trap is how it refreshes.** `invalidate() + login()` drops your *reference* to the old
+  session — it does not end the session, which keeps its seat until the inactivity timeout
+  (~30 min). Every run of such a check strands one seat. Against a small cap that is an outage
+  waiting for a busy afternoon, and it is invisible because the check itself reports success.
+- **Also:** make the refresh follow the tenant's **actual auth mode**. A check hardcoded to
+  forms-login on an oauth tenant opens a session the runtime never uses — and that nothing ever
+  closes, if your recycle cron skips oauth tenants.
+- **Do:** capture the outgoing credential, establish the replacement, publish it, **then** log the
+  old one out (see the logout-on-renew pattern above). Order matters: log out first and a
+  concurrent caller can pick up a dead credential.
+- *Verified live: 2025 R2, 2026-09.*
+
 ### Access-token lifetime is fixed at 1h and not configurable; only refresh-token lifetime is `[UNIVERSAL]`
 - Default access token life = **3600s**, returned as `expires_in`. There is **no** exposed knob to
   lengthen it (SaaS: no web.config access).
