@@ -54,7 +54,31 @@ exhausting its concurrent-login license. See the tag legend in [SKILL.md](./SKIL
 - **Pattern that keeps you at ~1 seat:** at token renewal, mint the new bearer, publish it as the
   active one, then log out the **outgoing** bearer and discard it. In a multi-worker/isolate
   deployment, do the swap under a single-flight lock so exactly one logout fires.
+- **Implementation trap inside that pattern:** a `logout()` helper that reads *the cached
+  credential* can only ever reach whatever is cached **now** — and after the swap that is the **new**
+  session. Called in the obvious order it logs out the replacement every caller just picked up: the
+  outgoing seat still strands *and* you take a self-inflicted outage. Log out **by value** — pass the
+  captured outgoing cookie/bearer into a logout that takes an argument — and keep the cache-reading
+  variant only for "end the session I am currently using".
 - *Verified live: 2025 R2, 2026-07 (seat 2→1 after a clean logout with no re-use).*
+
+### `api offline_access` reuses ONE session per grant — "no sign-out required" ≠ "no seat held" `[UNIVERSAL]`
+- With **`api offline_access`** (interactive Authorization Code + a stored refresh token), Acumatica
+  issues the session ID **with the first access token** and **reuses that same session** on every
+  refresh exchange — one session per *granted access*, so seats don't multiply as the refresh token
+  rotates. The vendor accordingly states you **"do not need to sign out"** (Integration Development
+  Guide → *OAuth 2.0 and OIDC: Session Management* → Requirements for the Sign Out).
+- **The trap:** that means sessions don't *accumulate* — **not** that the seat is free. Skip the
+  logout and the grant holds its seat until the OAuth session expires; the same topic's
+  Troubleshooting section says to "wait for **one hour**". Under a tight cap that is exactly the seat
+  you needed back.
+- Sign-out **is** required for cookie/forms-login sessions and for **`api:concurrent_access`** (once
+  per session), and is *recommended* for **`api`**-only, where the session dies with the token.
+- **Do:** on a tight cap, still `POST /entity/auth/logout` the bearer you have **stopped using** (the
+  entry above — seconds, not an hour). Don't delete a deliberate logout because the docs call it
+  unnecessary: *required* and *worthwhile* are different questions, and that sentence answers only
+  the first.
+- *Verified: doc text 25R2 / 2026R1; seat behavior verified live 2026-07 (see the logout entry above).*
 
 ### A ROPC bearer carries **no tenant identity** on contract REST — the connected app binds it `[UNIVERSAL]`
 - The three transports carry the company very differently, and only one of them is checkable
@@ -91,6 +115,12 @@ exhausting its concurrent-login license. See the tag legend in [SKILL.md](./SKIL
 - **Do:** capture the outgoing credential, establish the replacement, publish it, **then** log the
   old one out (see the logout-on-renew pattern above). Order matters: log out first and a
   concurrent caller can pick up a dead credential.
+- **Don't clear the cache first, either.** `invalidate()` *before* the new login opens a window in
+  which nothing is cached, and every concurrent caller that looks during it authenticates for
+  itself — the refresh you added to save one seat spawns a herd of them. Log in first (a successful
+  login overwrites the cached value, so there is no gap), then release the old one. That ordering
+  also means a *failed* refresh leaves the previous working session in place instead of stranding
+  every caller with nothing.
 - *Verified live: 2025 R2, 2026-09.*
 
 ### Access-token lifetime is fixed at 1h and not configurable; only refresh-token lifetime is `[UNIVERSAL]`

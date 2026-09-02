@@ -48,6 +48,20 @@ Contract-based REST entity/field/action traps. See the tag legend in [SKILL.md](
 - **Do:** use a **keyed GET** (`/Entity/{key}`) instead of a `$filter` list; for search/lookup by a
   non-key field, ride a **Generic Inquiry** (see [giql-odata.md](./giql-odata.md)).
 
+### A `$top=1` probe is **not** cheap on a delegate-heavy entity `[UNIVERSAL]`
+- `$top=1` bounds the rows **returned**, not the work done to produce them. On an entity whose
+  detail view is full of computed / BQL-delegate fields (project *budget*-style entities are the
+  ones to watch), a one-row existence/grant probe measured **~23 s**.
+- **Consequence:** a readiness check that probes each entity once is dominated by its worst entity —
+  the same sweep measured **~35 s total**. On a single serialized session that every caller shares
+  (see [auth-sessions.md](./auth-sessions.md)), that reads to an operator as "the app is hung", and
+  on a request path it is a real stall.
+- **Do:** keep these probes off request paths and cache the verdict; expect a full readiness sweep to
+  take tens of seconds rather than treating it as a fault. Log **per-probe timings** so the expensive
+  entity is named rather than guessed at, and where one dominates, prefer a keyed GET of a known
+  record over `$top=1`.
+- *Verified live: 25R2, Construction edition, 2026-09 (~23 s single-row probe, ~35 s full sweep).*
+
 ### `$orderby` can be **silently ignored** on heavy entities — a small `$top` then drops the rows you want `[UNIVERSAL]`
 - On some list-heavy entities (those with computed / BQL-delegate fields — e.g. the **Project** entity),
   the contract endpoint **ignores `$orderby`** and returns rows in a **fixed ascending key order**.

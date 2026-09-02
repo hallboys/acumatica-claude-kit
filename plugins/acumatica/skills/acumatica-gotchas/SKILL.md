@@ -40,13 +40,15 @@ shifts across releases, so an unverified claim is a hypothesis, not a fact.
 
 - **[auth-sessions.md](./auth-sessions.md)** — OAuth 2.0 ROPC, bearer/session/seat behavior,
   the concurrent-login cap, revocation vs logout (and the `Content-Length: 0` / 411 trap that
-  makes logout look broken), the connected app as the ONLY tenant binding
+  makes logout look broken), scope-dependent sign-out (`api` vs `api offline_access` vs
+  `api:concurrent_access`) and why "not required" still costs a seat, the connected app as the ONLY tenant binding
   under oauth, seat-neutral session refresh, token/session lifetimes, inactivity
   timeout scope, cookie reuse, account lockout, grant-cache flush.
 - **[entities-actions.md](./entities-actions.md)** — per-entity field-name traps, PXAction
   names (Release / ConfirmShipment / FinishCounting), the post-Update-IN CorrectShipment lockout,
-  keyed-GET-not-$filter, the file-attach path, long-op polling, PO number padding, drop-ship
-  detection, mandatory Project, reason-code usage restrictions.
+  keyed-GET-not-$filter, why a `$top=1` probe is not cheap on a delegate-heavy entity, the
+  file-attach path, long-op polling, PO number padding, drop-ship detection, mandatory Project,
+  reason-code usage restrictions.
 - **[giql-odata.md](./giql-odata.md)** — CannotOptimizeException, why some reads must ride a GI,
   $select+$expand drops, parameter-free GI requirement, parameterized-GI-empty-over-OData and the
   `_WithParameters` FunctionImport that does bind them, calculated-column filters returning an
