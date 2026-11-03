@@ -20,25 +20,85 @@ GI return nothing / the wrong columns. See the tag legend in [SKILL.md](./SKILL.
   `$select` (`$select=…,Orders&$expand=Orders`) to get the rows.
 - *Verified live: 25R2.*
 
-### A **parameterized** GI returns **0 rows** when queried by its BASE name — parameters bind only through `_WithParameters` `[UNIVERSAL]`
-- Querying `/api/odata/gi/<GI>` for a GI that declares parameters returns **empty, with HTTP 200 and
-  no error** — the parameters stay NULL, so the WHERE clause fails. This is a silent wrong answer,
-  not a failure, which is what makes it dangerous.
+### A **parameterized** GI queried by its BASE name silently ignores its parameters — bind them through `_WithParameters` `[UNIVERSAL]`
+- Querying `/api/odata/gi/<GI>` for a GI that declares parameters runs it **with no parameter values,
+  HTTP 200, no error**. What comes back depends on how the design uses each parameter: a WHERE that
+  compares against the NULL parameter returns **0 rows**; one written as "blank = all" returns
+  **every row** (an unfiltered result that looks plausible). Either is a silent wrong answer.
 - **Parameters ARE bindable, and Acumatica documents it.** A parameterized GI is exposed as a
-  *separate* **`_WithParameters` FunctionImport** and addressed by that distinct name with the args in
-  parentheses: `/api/odata/gi/<GI>_WithParameters(Warehouse='WHOLESALE')`, or with aliases
-  `..._WithParameters(Warehouse=@1)?@1='WHOLESALE'`. The `$metadata` service document lists an
-  `EntitySet` for the plain form and a `FunctionImport` with the `_WithParameters` postfix for the
-  parameterized one — which is also the reliable way to *detect* that a GI is parameterized.
+  *separate* **`_WithParameters` FunctionImport**:
+  `/api/odata/gi/<Import>_WithParameters(Warehouse='WHOLESALE')`, or with aliases
+  `..._WithParameters(Warehouse=@1)?@1='WHOLESALE'`. In `$metadata`, the `FunctionImport` name is the
+  GI name with spaces and punctuation stripped (`My - Inquiry` → `MyInquiry_WithParameters`); its
+  `Function="GenericInquiry.<real GI name>"` attribute points at the `<Function>` element that lists
+  each `<Parameter Name Type [Nullable="false"]>`. Look the GI up by that `<Function Name>` — the real
+  name, XML entities decoded — not by guessing the stripped import name.
   Source: *Generic Inquiry Access Through OData: Data Retrieval* and *…: General Information*.
-- **Do:** for a consumer that can't or won't supply parameters (and for any AI/agent consumer, which
-  cannot detect the silent-empty case), publish a **parameter-free** copy for OData, or read the
-  underlying **contract entity**. For a deliberate caller that knows the parameters, use
-  `_WithParameters` — it is supported, not a workaround.
+- `$filter`, `$select`, `$top` (and `$count` where supported — see below) all work **on top of** the
+  function call; empty parentheses `<Import>_WithParameters()` runs with every parameter unset.
+- Values: strings single-quoted with `'` doubled (`'O''Brien'`), booleans bare `true`/`false`,
+  numbers bare. A string value of `''` is **not** "no value": it is a literal blank and usually
+  matches nothing — omit the parameter instead.
+- **Do:** a caller that knows the parameters should use `_WithParameters` — it is supported, not a
+  workaround, and is safe for an agent **if** the caller validates parameter names and required
+  parameters first (see the next two entries). A consumer that can't supply parameters should use a
+  parameter-free copy or the underlying contract entity.
 - **Don't** conclude "OData can't bind GI parameters" from a probe that only tried `$filter` on
-  parameter names, URL query strings, or function-call syntax against the **base** GI name. That
-  tests the wrong path and is how this entry originally got the mechanism wrong.
-- *Verified live: 25R2. Documented in both the 25R2 and 26R1 doc sets (checked 2026-08-31).*
+  parameter names, URL query strings, or function-call syntax against the **base** GI name.
+- **Don't** use "it has a `_WithParameters` import" only as a reason to *hide* a GI — that import is
+  the way to call it correctly.
+- *Verified live: 25R2 and 26R2 (2026-11). Documented in the 25R2 and 26R1 doc sets.*
+
+### A **misspelled** `_WithParameters` parameter name is **silently ignored** `[UNIVERSAL]`
+- `<Import>_WithParameters(WrongName=@p1)?@p1='X'` succeeds (HTTP 200) and runs as if the parameter
+  were absent — on a "blank = all" design that returns the **whole unfiltered result**. No error, no
+  warning. GI parameter names are free text, so a typo in the design itself is common — and a caller
+  that "corrects" the spelling gets unfiltered data.
+- **Do:** validate every supplied name against the `<Function>` parameters in `$metadata` before
+  calling (a case-insensitive match resolved to the canonical spelling is fine), and refuse unknown
+  names rather than sending them.
+- *Verified live: 25R2 and 26R2 (2026-11).*
+
+### Required GI parameters: `Nullable="false"` ⇔ **Is Required**; an omitted optional takes the GI **default** `[UNIVERSAL]`
+- A `<Parameter … Nullable="false"/>` in `$metadata` is exactly a parameter with **Is Required**
+  checked on the GI's Parameters tab (SM208000); unchecked ones carry no `Nullable` attribute.
+- **Required parameter omitted** from the call → **HTTP 404** ("Record not found"), not a silent result.
+- **Optional parameter omitted** → it takes the GI's **Default Value** (e.g. `@QuarterStart`,
+  `@QuarterEnd`), so the result can be narrower than the caller expects. Defaults are **not** in
+  `$metadata`; read them from the design (`GIFilter`) if a consumer needs to say which applied.
+- **Do:** enforce required parameters client-side (a 404 is easily misreported as "no such record"),
+  and report which optional parameters fell back to their defaults.
+- *Verified live: 26R2 (Is Required ⇔ Nullable checked both ways; defaults confirmed by comparing an
+  omitted date range with an explicit wider one) and 25R2 (2026-11).*
+
+### OData date-time values can't go in the URL **path** — pass them as **aliases** `[UNIVERSAL]`
+- `<Import>_WithParameters(FromDate=2026-10-01T00:00:00Z)` is rejected by ASP.NET request validation
+  before Acumatica sees it ("A potentially dangerous Request.Path value was detected from the client
+  (:)", an HTML error page). The `:` is the trigger.
+- **Do:** put values in the query string as parameter aliases:
+  `<Import>_WithParameters(FromDate=@p1)?@p1=2026-10-01T00:00:00Z`. Sending **every** value as an
+  alias is the simplest single code path (it also keeps `/`, `#` etc. out of the path). Percent-encoded
+  alias keys (`%40p1`) are accepted.
+- *Verified live: 26R2 (path rejected, alias works) and 25R2 (alias works) (2026-11).*
+
+### GI **date** parameters change type between releases: 25R2 `Edm.DateTimeOffset`, 26R2 `Edm.Date` `[UNIVERSAL]`
+- The same GI's date parameters are declared `Edm.DateTimeOffset` on 2025 R2 and `Edm.Date` on
+  2026 R2 (and the corresponding result columns come back as `2026-10-01T00:00:00Z` vs `2026-10-01`).
+- 2025 R2 still **accepts a plain `YYYY-MM-DD`** for its `Edm.DateTimeOffset` parameters and applies
+  it correctly (an out-of-range plain date returned 0 rows, an in-range one the expected row).
+- **Do:** read the parameter type from live `$metadata` rather than hardcoding it, and accept a plain
+  date for date-time parameters instead of forcing `…T00:00:00Z` (which makes the caller pick a time
+  zone and can shift a range edge by a day).
+- *Verified live: 25R2 production and 26R2 (2026-11).*
+
+### `$count=true` **works** on the GI OData endpoint in 26R2 — though the 25R2 docs list it as unsupported `[UNIVERSAL]`
+- On 26R2, `/api/odata/gi/<GI>?$count=true` returns `@odata.count`, with or without `$filter`, and it
+  equals the number of rows the same query returns. It also works on `_WithParameters` calls.
+- The 25R2 *Reporting Tools* guide ("Supporting the OData Specification") lists `$expand` and
+  `$count` as unsupported on the GI-based OData interface. Not tested on 25R2.
+- **Do:** on 26R2+, request `$count` to tell "exactly at the row cap" apart from "more rows exist";
+  keep it switchable per release.
+- *Verified live: 26R2 (2026-11). 25R2: documented unsupported, untested.*
 
 ### GI **column names differ between the raw OData feed and the MCP** — trust the feed `[CLAUDE]` / `[UNIVERSAL]`
 - The Acumatica MCP may render a GI column under a different name than the **raw OData feed** your

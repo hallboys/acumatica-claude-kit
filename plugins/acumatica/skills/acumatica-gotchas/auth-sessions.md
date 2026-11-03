@@ -142,6 +142,9 @@ exhausting its concurrent-login license. See the tag legend in [SKILL.md](./SKIL
 - *Verified: 2023 R1 → 2025 R2, 2026.*
 
 ### OData authenticated with Basic-per-call mints a session **per call** `[UNIVERSAL]` (legacy path)
+- The GI OData feed does not accept a **browser sign-in session**: a fetch from a page signed in to
+  Acumatica gets **401** with `WWW-Authenticate: Basic …, Bearer authorization_uri=…` (verified 26R2,
+  2026-11). It wants HTTP Basic or an OAuth bearer — so "just test it in the browser" doesn't work.
 - In legacy/forms mode, the contract-login cookie may 401 on the OData GI feed, so integrations
   fall back to **HTTP Basic on every OData call** — and Basic with no session cookie makes Acumatica
   **create a new session per call**, exhausting the license fast.
@@ -156,6 +159,20 @@ exhausting its concurrent-login license. See the tag legend in [SKILL.md](./SKIL
   500s with "account is locked out").
 - **Do:** verify the service password against a live login **before** deploying/enabling it; treat
   auth failures as circuit-breaker events, not blind-retry.
+- A failed Basic-auth OData call returns **401 with an empty body** — nothing says *why* (wrong
+  password, lockout, login limit). Read the reason from **Access History (SM201045)** instead of
+  retrying, since every retry can count toward the lockout.
+
+### The `/t/{tenant}` URL segment is the tenant's **Login Name**, not its Tenant Name `[UNIVERSAL]` (values `[TENANT]`)
+- OData (`/t/{tenant}/api/odata/…`) and the built-in MCP server (`/t/{tenant}/mcp/{server}`) address
+  the company by the **Login Name** column on Tenants (SM203520). The **Tenant Name** column is a
+  display label and does not work in the URL.
+- A single-tenant instance shows no tenant list on the sign-in page, so the Login Name is easy to
+  miss. With the wrong segment, a self-hosted instance falls through to IIS: a signed-in browser gets
+  IIS's own **404 (handler `StaticFile`)** and a bearer/Basic request gets **401** — which reads like
+  an auth problem, not a typo.
+- **Do:** copy the Login Name from SM203520 (or from the built-in MCP server's URL, which embeds it).
+- *Verified live: 26R2 self-hosted (2026-11).*
 
 ### Granting a **cookie-auth** permission requires flushing the cached session `[UNIVERSAL]`
 - A cached forms-login **session cookie carries the rights it had at login time.** Granting a new
