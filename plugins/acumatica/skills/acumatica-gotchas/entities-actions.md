@@ -47,6 +47,26 @@ Contract-based REST entity/field/action traps. See the tag legend in [SKILL.md](
   list GET — they throw **`CannotOptimizeException`**.
 - **Do:** use a **keyed GET** (`/Entity/{key}`) instead of a `$filter` list; for search/lookup by a
   non-key field, ride a **Generic Inquiry** (see [giql-odata.md](./giql-odata.md)).
+- `CannotOptimizeException` is one member of a **family**: the same filter binder 500s with *"…is not a
+  single value"* (filter reaches a child collection), *"Type conversions not supported"* (computed numeric
+  such as a document total), *"The given key was not present"* (field the contract view doesn't bind).
+  Classify by the binder namespace in the error (`PX.Api.ContractBased.OData…` /
+  `Microsoft.Data.OData.Query`), not one message string.
+- There is also a **silent mode**: HTTP 200 `[]` although matching records exist (seen with `substringof`
+  on an unbound text field of the purchase-order header) — indistinguishable from a genuine empty result.
+  Seen on purchase orders, shipments and physical-inventory counts; a **keyed** filter (`$top=1`) still works.
+- **Do:** treat an empty non-key filter result on these entities as *unverified*, not "no such record";
+  search through a GI. *Verified live: 25R2, 2026.*
+
+### Contract REST: `substringof(…) eq true` returns **`[]` silently** — send the bare function `[UNIVERSAL]`
+- `substringof('X', F) eq true`, `startswith(…) eq true`, `endswith(…) eq true` → **HTTP 200, empty array,
+  no error**. The bare `substringof('X', F)` returns the matching rows. `eq true` is valid OData v3 and
+  clients/models append it habitually, so partial-text searches silently "find nothing".
+- Not a URL-encoding problem (parenthesis / `+` encoding was ruled out live).
+- Negation has no known working form: `not substringof(…)` → **500**; `eq false` is unverified.
+- **Do:** strip `eq true` from boolean string functions before sending. The GI feed is a different (v4)
+  dialect — see [giql-odata.md](./giql-odata.md).
+- *Verified live: 25R2, 2026.*
 
 ### A `$top=1` probe is **not** cheap on a delegate-heavy entity `[UNIVERSAL]`
 - `$top=1` bounds the rows **returned**, not the work done to produce them. On an entity whose
@@ -87,6 +107,22 @@ Contract-based REST entity/field/action traps. See the tag legend in [SKILL.md](
   matches **nothing** and hands out the same name forever, silently overwriting. **Compare on the
   basename**, not the returned string.
 - *Verified live: 25R2, 2026-08.*
+
+### There is no REST file delete; only `UploadFileMaintenance.DeleteFile` removes external blobs, and only conditionally `[UNIVERSAL]`
+- Contract REST has **no file delete** (`DELETE files/{id}` is reported to fail), and re-attaching creates
+  a **new FileID**, breaking anything that pointed at the old one. *(docs/community; unverified live)*
+- `DeleteFile(Guid?)` (behind *Delete File* on SM202520 / *Delete* on SM202510) removes external blobs only
+  when *Allow Saving Files* is on and web.config `DisableDeleteOnExternalFileStorage` isn't true. It does
+  **not** check access rights or links (the docs say SM202520 acts only on unlinked files; the code doesn't
+  check), doesn't delete `UploadFileTag` rows, and opens no transaction of its own.
+- The **record-delete cascade** (`PXNoteAttribute`) raw-deletes files linked only to the deleted record and
+  **never removes external blobs**; it runs per file inside the owner's transaction, so a parent with
+  thousands of attachments can hit *Execution Timeout Expired*.
+- An empty **Entities** tab on SM202510 doesn't mean the file is unlinked — query `NoteDoc`.
+  `UploadFileRevision.Size` is in **KB** (rounded up).
+- A data provider (SM206015) whose `FileName` is the sentinel `<EmptyFileName>` uses the **most recently
+  created attached file**; the screen shows the resolved name, the DB keeps the sentinel.
+- *Verified: code reading of a decompiled 25R2 build (25.201.0213), 2026-10. Not exercised live.*
 
 ### Mandatory `Project` on Inventory documents; non-project uses a sentinel code `[UNIVERSAL]` (code value `[TENANT]`)
 - Every IN document requires a **Project**. Non-project transactions use a **sentinel project code**
@@ -174,3 +210,69 @@ Contract-based REST entity/field/action traps. See the tag legend in [SKILL.md](
   per-entity naming trap at the top of this file. Read from whichever projection has the fields; write
   through the one that owns the operation.
 - *Verified live: 25R2.*
+
+### User-defined **attributes**: write the value ID, read back the LABEL; Datetime attributes store **date only** `[UNIVERSAL]` (which attributes exist `[TENANT]`)
+- A contract-REST write takes the attribute's **value ID**; the read returns the **label** (you write a short code,
+  you read back its display text). Compare read-backs against labels. A GI reading the answers table
+  surfaces the ID instead.
+- **Datetime-type attributes keep only the date**: a written `14:22` reads back `00:00:00` in four input
+  formats. Don't use them for dwell/elapsed time.
+- A document type with **no class** (e.g. shipments) has nowhere to hang an attribute default, so every
+  untouched or pre-existing record reads `null`. A GI/report on the attribute needs a "date ≥ go-live"
+  filter, or history reads as "untouched".
+- Reading: `$custom=Document.Attribute<ID>` on contract REST; in a GI select `<DAC>.Attribute<ID>`
+  directly, no answers-table/NoteID join needed.
+- *Verified live: 25R2, 2026-08-26 (ID-vs-label, date-only, null default) and 2026-06-30 (direct `Attribute<ID>` select + `$custom` read).*
+
+### Inventory documents have a **header (Financials-tab) branch separate from the line branch** — set both `[UNIVERSAL]`
+- IN documents (adjustment / issue / receipt) carry a **per-line branch** (drives the line's inventory
+  transaction) and a **document/header branch** (drives the **GL batch**). An unset header branch defaults
+  to the **signed-in (service) user's branch**, whatever the lines say — the GL posts to the wrong branch
+  while the lines look right.
+- Testing with a warehouse in the service account's default branch **masks** this.
+- The header branch field is **not in the stock Default endpoint** for these entities; extend the endpoint.
+  The per-line branch field name differs per entity (`BranchID` on adjustment lines, `Branch` on issue
+  lines, a `custom` transactions field on receipts). `TransferOrder` has **no branch field** (derived from
+  the from/to warehouses).
+- **Do:** stamp header and line branch from the warehouse, server-side; verify with a warehouse outside the
+  service account's home branch.
+- *Verified live: 25R2, 2026-06.*
+
+### `PX-CbApiBranch` header sets the session branch per call — works on **create**, not to re-branch `[UNIVERSAL]`
+- Documents whose graph defaults `BranchID` from the session's current branch (and whose endpoint can't map
+  a branch field) land in the **service account's sign-in branch**, invisible to users without that branch.
+- The per-request header **`PX-CbApiBranch: <branch CD>`** (Integration Development Guide → "Change the
+  Business Date or Current Branch") makes the create land in that branch. Unknown branch, or one the user
+  lacks → **500** "The user does not have access to the X branch".
+- It does **not** re-branch an existing record: an update PUT with the header, a `custom` `BranchID`
+  write, or both → 200, unchanged. Read back with `$custom=Document.BranchID` (`$select=BranchID` 500s).
+- **Do:** resolve the branch server-side and send the header on create.
+- *Verified live: 25R2, 2026-10-22 (requisition request).*
+
+### Raising a shipment line's `ShippedQty` from **0 → N** needs `LocationID` (+ `WarehouseID`) `[UNIVERSAL]`
+- Reducing `ShippedQty` (including to 0) works with the qty alone. **Raising** it from 0 returns **422**
+  unless the same PUT also sends `LocationID` + `WarehouseID` (the ERP rebuilds the line's split). Same for
+  raising a non-stock kit line 0 → 1.
+- **Do:** always send location + warehouse on any shipment-line qty write.
+- *Verified live: 25R2, 2026-06.*
+
+### Field Service **Appointment** writes: schedule, staff reassign, hidden prerequisites `[UNIVERSAL]`
+- **Schedule:** a base-URL PUT with keys (`ServiceOrderType`, `AppointmentNbr`) + `ScheduledHandleManually:
+  true` (stops the recompute) + `ScheduledStartDate`/`EndDate` (UTC date at `T00:00:00Z`) and
+  `ScheduledStartTime`/`EndTime` as **`1900-01-01Thh:mm:ssZ` UTC** epoch-datetimes. Works on stock Default.
+- **Reassigning staff:** an in-place update of a Staff line's `StaffMember` returns 200 and is **silently
+  ignored**. Delete the old line by `id` and add a new one (`StaffMember`, `PrimaryDriver`,
+  `StaffType: "Employee"`, `CostCode`) in **one** PUT.
+- **Since 25R2 a Staff line requires a Cost Code**, and the API does **not** apply the order-type default
+  the UI applies → 500 "'Cost Code' cannot be empty…" inside "Operation failed". Supply it explicitly.
+- **The acting user must be linked to an Employee** ("User must be an Employee to use current screen"), so a
+  generic service account can't write appointments; use per-user auth.
+- *Verified live: 25R2, 2026-07.*
+
+### **Project Quote** is not on the Default contract endpoint; customer visibility lives on `Customer` `[UNIVERSAL]`
+- Default `25.200.001` exposes **no** `ProjectQuote` / `SalesQuote` / `PMQuote` / `Quote` entity (only
+  `ProjectProperties.QuoteNbr`). Writing Project Quotes (PM304500) needs a **custom endpoint** — ship it in
+  a customization project so every tenant gets the same shape.
+- **`RestrictVisibilityTo` is on the `Customer` entity**; a business account can't be restricted, and
+  prospects (no `Customer` record) have no restriction to read.
+- *Verified live: 25R2, 2026-07/08 (entity absence, `RestrictVisibilityTo` placement).*

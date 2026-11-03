@@ -36,7 +36,7 @@ clone) — no shared/hardcoded path.
 ## Steps (per lesson)
 
 1. **Pick the topic file** under `skills/acumatica-gotchas/`: `auth-sessions.md`, `entities-actions.md`,
-   `giql-odata.md`, `writes-idempotency.md`, `reference-vs-tenant.md`. Read it first — match the style and,
+   `giql-odata.md`, `writes-idempotency.md`, `builtin-mcp.md`, `install-upgrade.md`, `reference-vs-tenant.md`. Read it first — match the style and,
    if the lesson duplicates an existing entry, **refine that entry** instead of adding a second.
 
 2. **Classify** using `skills/acumatica-gotchas/reference-vs-tenant.md`:

@@ -19,20 +19,35 @@ exhausting its concurrent-login license. See the tag legend in [SKILL.md](./SKIL
 - With scope **`api`** (not `api:concurrent_access`), a bearer token authenticates **both**
   contract REST and the OData GI feed, and Acumatica maps it to a **single reused session** — no
   session cookie needed (the only `Set-Cookie` is a benign locale cookie).
-- **Trade-off:** one session ⇒ Acumatica **serializes** your calls (a single session does not
-  process REST requests concurrently). Fine if reference reads are cached and hot paths are
-  sequential; bound in-flight calls so you never fan out beyond what one session can serve.
-- **`api:concurrent_access`** enables concurrency **only if you reuse the session cookie** per
-  call; otherwise every call counts as a *new* concurrent user and re-floods the license.
-- *Verified: 2025 R2, 2026.*
+- **Trade-off:** one session ⇒ Acumatica **serializes** your calls. Measured: 4 concurrent calls returned
+  in a **0.5/1.0/1.5/2.0 s staircase**, so `Promise.all` buys nothing; the only lever is fewer calls.
+- **`api:concurrent_access` works, if you pin cookies.** Under it, a **bearer-only** call creates a **new
+  session per call** (`Set-Cookie` carries `ASP.NET_SessionId`, `CompanyID`, `UserBranch`) — the flood
+  mode. Re-sending the cookie pins one session (the OData GI feed accepts that cookie too). **Separate
+  sessions run in parallel**: concurrency is a property of the session count, not the license. Check
+  `granted_scope` in the token response — the connected app may already grant it.
+- **Release order:** `POST /entity/auth/logout` with each session's `Cookie` + `Content-Length: 0` → 204.
+  Log out **every cookie jar before revoking the bearer**; revoking first leaves them unusable but holding
+  seats until they idle out. Size a pool of N under the identity's per-user cap (≥ 2N+1 for renewal overlap).
+- *Verified: 2025 R2, 2026 (`api:concurrent_access` cookie behaviour re-verified live 2026-09-10).*
 
-### The concurrent-login license cap is real and small — respect it `[UNIVERSAL]` (cap value `[TENANT]`)
-- Acumatica enforces a **maximum number of concurrent sessions/logins** per license. Exceeding it
-  → **`License_LoginLimitExceeded`** and/or `ResourceGovernor` request terminations.
-- The **cap value is license/tier-specific** (a standard tier is often just a handful; higher tiers
-  are larger). Treat the number as `[TENANT]`; never hardcode an assumption.
-- **Do:** reuse one cached token/session across requests; single-flight re-auth so a burst of
-  401s can't herd many logins at once; bound concurrency; recycle sessions deliberately.
+### The concurrent-login license cap is real and small — respect it `[UNIVERSAL]` (cap values `[TENANT]`)
+- There are **two different limits**, and confusing them misdiagnoses incidents:
+  - **Per-user**: the user record's **Max. Number of Concurrent Logins** (SM201010; documented default
+    **3**, configurable), or **Allowed Concurrent Sign-Ins** on the user type (EP202500; OAuth apps need
+    Allowed Sign-In Type = Unrestricted). A single integration identity hits *this* cap first.
+  - **License (SM604000, License tab)**: **Max Web Services API Users** (concurrent API sessions,
+    tenant-wide), **Max Concurrent Web Services API Requests** (instance-wide parallel processing shared by
+    *every* API consumer) and **Requests per Minute** (per the vendor docs, delays start at ~50% of the
+    per-minute figure, with an internal queue behind that). The Warnings tab flags any app opening >3
+    sessions — a warning threshold, not a limit.
+- Exceeding a cap → `License_LoginLimitExceeded` / "The number of concurrent API logins … has been reached"
+  and/or `ResourceGovernor` terminations. **An exhausted-seat request can also come back as an IIS `406`
+  "browser does not accept the MIME type" page** — a 406 on a call that worked minutes ago means seats.
+- All values are `[TENANT]`: read them off SM201010 / SM604000, don't infer from symptoms.
+- **Do:** reuse one cached token/session; single-flight re-auth; bound concurrency. Do live verification
+  through **one long-lived process** — each standalone ROPC script run mints its own seat.
+- *Verified live: 25R2, 2026-09-10 (fields read off SM201010/SM604000); 406 symptom observed 2026-08-30.*
 
 ### OAuth token **revocation does NOT free the session seat** `[UNIVERSAL]`
 - `POST /identity/connect/revocation` invalidates the *token* but does **not** promptly release
@@ -186,3 +201,59 @@ exhausting its concurrent-login license. See the tag legend in [SKILL.md](./SKIL
 - If you run multiple Acumatica **tenants/companies**, the "same" service username in each is a
   **distinct account** — an auth failure/lockout in one cannot affect the other. Don't assume a
   shared identity across tenants. *(Lesson is portable; which tenants exist is `[TENANT]`.)*
+
+### Authorization Code + refresh: request `offline_access` (and `api`), serialize refreshes, classify failures by **HTTP status** `[UNIVERSAL]`
+- **Scopes are request-side** — Connected Applications (SM303010) has no scope field. Without
+  **`offline_access`** no refresh token is issued, and the session dies with the ~1 h access token. Every
+  hostname users reach the app through needs its own redirect URI on the connected app.
+- **Without `api`, sign-in succeeds but every API call 403s with an empty body** — it reads like a missing
+  grant, not a bad token, and a browser test can't reproduce it (the browser uses cookies). A refresh
+  **cannot widen** scope: after adding `api`, every user must sign in again; purge stored tokens so they get
+  a clean 401 → login. One instance also required the interactive app to be **confidential** (PKCE alone →
+  `invalid_client`; send the secret on code exchange and refresh).
+- **Refresh tokens rotate on every use.** Two concurrent refreshes of one grant race: the loser posts an
+  already-rotated token, gets a 4xx, and a healthy user looks dead. An in-process lock isn't enough when
+  several processes/isolates share the user.
+- **A dead refresh token returns HTTP 400, but the body's `error` is not reliably `invalid_grant`.** Only
+  5xx / 429 / network failures are worth retrying; any 4xx means re-authenticate (RFC 6749 §5.2).
+- **Do:** single-flight refreshes per user across all processes; 4xx → force re-auth, 5xx/429 → retry and
+  keep the grant; map 401 → re-auth and 403 → "ask an admin". Log status + error code only — the
+  token-endpoint error body can echo `client_secret`.
+- *Verified live: 25R2 SaaS, 2026-06/07 (4xx → re-auth; `api`-less 403 was a production outage); rotation race observed in production 2026.*
+
+### OIDC sign-in carries identity only — no roles, groups or branches; `sub` embeds the tenant `[UNIVERSAL]`
+- The id_token and `/identity/connect/userinfo` return built-in claims only (`email`, `name`, `given_name`,
+  `family_name`, `phone_number`, `preferred_username`, `updated_at`, `zoneinfo`). The access token is an
+  **opaque reference token**, not a JWT. No roles / groups / branch claim.
+- `sub` has the form `<domain>\<user>@<TenantLoginName>`: an app keyed on `sub` silently forks every user
+  when repointed at another tenant (only the suffix changes — rewrite stored subjects, purge tokens).
+- **SAML/federated users have no `UsersInRoles` rows** (roles come from IdP groups at login), so role
+  membership over DAC OData can't answer access questions for them.
+- The only supported way to add access data to the token is a custom claim provider
+  (`IPluginClaimProvider`, 2023 R1+): a Bin DLL pinned to the build whose publish restarts the app domain
+  for **all tenants**. Researched, not built.
+- **Do:** derive per-user scope by running a row-level-scoped GI **as the user** (see the row-level entry in
+  [giql-odata.md](./giql-odata.md)), not from token claims.
+- *Verified live: 25R2, 2026-07.*
+
+### There is no API to read users or role membership on SaaS `[UNIVERSAL]`
+- `User` / `UserRole` contract entities and the screen-based API path for the users form return **404** on
+  SaaS; over DAC OData, `Users` and `UsersInRoles` return **403** for an ordinary user.
+- To identify the caller use OIDC `/identity/connect/userinfo` (`openid profile email`); the fallback
+  `/entity/auth/{version}/UserSecurityInfo` doesn't exist on every instance.
+- **Do:** to gate an integration on "user has role X", grant read on a trivial OData-exposed GI to that
+  role only and test whether the user's token can read it: 200 granted, 403 denied, 404/5xx =
+  misconfiguration (missing GI, wrong tenant, OData off), not denial.
+- *Verified: 25R2 SaaS, 2026 (DAC 403s 2026-07-31).*
+
+### SaaS authenticates **before** routing — an unauthenticated 401 says nothing about whether a path exists `[UNIVERSAL]`
+- Unauthenticated, **every** path returns 401: a nonexistent tenant segment, a nonexistent OData service, a
+  nonexistent endpoint version. A readiness check reading "401 = exists, 404 = wrong" passes a typo'd tenant
+  or endpoint version as healthy.
+- With a real **user token** the codes mean something: 200 exists and readable, 403 exists but no rights,
+  404 does not exist, 401 token expired.
+- Contrast (self-hosted 26R2, 2026-11): unauthenticated `GET {site}/entity` returned **200** with
+  `acumaticaBuildVersion` and the endpoint list. The SaaS `/entity` root was not probed.
+- **Do:** verify tenant/endpoint config only with an authenticated call; report an unauthenticated 401 as
+  "unverified", never "pass".
+- *Verified live: 25R2 SaaS, 2026-07-30.*

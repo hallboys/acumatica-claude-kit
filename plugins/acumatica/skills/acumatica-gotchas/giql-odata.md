@@ -15,6 +15,64 @@ GI return nothing / the wrong columns. See the tag legend in [SKILL.md](./SKILL.
 - **Do:** expose a **Generic Inquiry** for that read and query it over OData. This is the standard
   escape hatch for search/lookup/work-list reads.
 
+### The GI OData feed speaks **OData v4**; contract REST speaks **v3** — don't carry filter syntax between them `[UNIVERSAL]`
+- `/t/{tenant}/api/odata/gi/…` is **OData v4** (its parser errors are verbatim Microsoft.OData.Core
+  wording); `/entity/{endpoint}/{version}/…` is **v3**:
+
+  | | Contract REST (v3) | GI OData (v4) |
+  |---|---|---|
+  | partial match | `substringof('x', F)` | `contains(F,'x')` — `substringof` → *"unknown function"* |
+  | `startswith` / `endswith` | work | work |
+  | `tolower()` / `toupper()` | 500 | work |
+  | date literal | `datetimeoffset'…'` | bare `2024-01-01T00:00:00Z`; `datetimeoffset'…'` → *"Unrecognized 'Edm.String' literal"* |
+
+- A v4 parser rejection means the query **never ran** — don't report it as "no rows matched". For an
+  unknown-property error, take real names from the GI's `$metadata` (dialect/naming mistakes were the
+  largest error class in one production integration's logs).
+- *Verified live: 25R2, 2026-07-31.*
+
+### Row-level security **filters** rows silently — HTTP 200 with fewer rows, never an error `[UNIVERSAL]`
+- Restriction groups and branch row access limit what an identity sees in GI and contract reads. A missing
+  grant produces a clean **200 with a shorter result** (a whole branch returning 0 rows; a catalogue a few percent short).
+- A mirror/sync that imports "what it saw" therefore **retires live records**, and every diagnostic read as
+  the same restricted account confirms the absence. **An unprivileged read is not evidence of absence.** A
+  normal service account can't introspect restriction groups (`RelationGroup` → 403).
+- **Not everything is filtered:** the **Branch** master returns every branch whatever the user's access
+  (enforcement applies to transactions), so reading `Branch` as the user can't answer "which branches may
+  they see". Restriction groups scope *projects*, not branch access.
+- The same mechanism works as an ACL: a GI called with the **user's own token** returns only that user's
+  rows, so its result *is* their grant. Treat an empty cached grant as a cache miss.
+- **Do:** guard destructive sync steps (hold back mass deactivation above a threshold); compare counts
+  between the GI and the master entity/DAC as a canary; when a branch or entity comes back empty, check the
+  identity's row-level grants first.
+- *Verified live: 25R2, 2026-07 (branch) and 2026-08 (catalogue).*
+
+### GI `$filter` on stored columns is pushed into SQL — cost scales with **matched** rows; values arrive right-padded `[UNIVERSAL]`
+- Timed at ~**44 ms per matched row**: a wide window (1,000+ rows) took ~45 s; the same window filtered on
+  two stored code columns ~1 s. Slow GI reads usually come from fetching too much, not from the filter.
+- `$select` cuts the payload (~1.8 MB → ~0.5 MB per 1,000 rows) but **not server time** on large pages.
+- Fixed-width CHAR codes come back right-padded (`"CODE      "`). An equality `$filter` still matches (the
+  collation ignores trailing pad — also seen on 26R2), but client-side equality, map keys and cache keys
+  don't. Trim at the boundary.
+- **Do:** push every **stored**-column predicate into `$filter` (never a calculated column), `$select` only
+  what you render, and trim before comparing, keying or displaying.
+- *Verified live: 25R2, 2026-07 (timed curl).*
+
+### DACs are queryable directly over OData v4 at `/t/{tenant}/api/odata/dac` (2025 R1+) `[UNIVERSAL]`
+- No GI needed. Access is the user's own and enforced per DAC — each needs View on its **owning screen**;
+  some return 403 to ordinary accounts (user, user-role, payment-method-detail, `RelationGroup`,
+  `INItemClass`).
+- Entity sets use the **bare class name** (`SOOrder`); the namespace-qualified form in the docs is the OData
+  *type* and 404s as a set. There are **thousands** of sets — address them by name, never pull `$metadata`
+  into a model's context.
+- **Always `$select`** (the users DAC exposes password, password-answer and 2FA fields). Page at **≤ 200**
+  rows; larger pages reset the connection.
+- Field names are **physical DAC names**, and fields return **surrogate keys** where a GI returns codes
+  (`ItemClassID` is an integer, useless without the lookup DAC). Read-only; no aggregation extension.
+- **Do:** use it for bulk reads/export/reconciliation and filters contract REST can't apply on document
+  entities — not as a speed win for small capped reads.
+- *Verified live: 25R2, 2026-07/08.*
+
 ### On a **list** GET, an expanded sub-collection is dropped unless it's also in `$select` `[UNIVERSAL]`
 - `$expand=Orders` alone returns `Orders: []` on a list read. You must **also** name it in
   `$select` (`$select=…,Orders&$expand=Orders`) to get the rows.
@@ -99,6 +157,9 @@ GI return nothing / the wrong columns. See the tag legend in [SKILL.md](./SKILL.
 - **Do:** on 26R2+, request `$count` to tell "exactly at the row cap" apart from "more rows exist";
   keep it switchable per release.
 - *Verified live: 26R2 (2026-11). 25R2: documented unsupported, untested.*
+- An integration's probe script reads `@odata.count` from a 25R2 production GI and a DAC
+  (`?$count=true&$top=1`) — indirect evidence it may work on 25R2 too. Not a stated live verification;
+  check before relying on it.
 
 ### GI **column names differ between the raw OData feed and the MCP** — trust the feed `[CLAUDE]` / `[UNIVERSAL]`
 - The Acumatica MCP may render a GI column under a different name than the **raw OData feed** your
@@ -139,6 +200,11 @@ GI return nothing / the wrong columns. See the tag legend in [SKILL.md](./SKILL.
 - **Don't** treat a body-less 200 as an empty result set: standard OData returns `{"value":[]}` for a
   genuinely empty result, so a missing body is anomalous and means the query never really ran.
 - *Verified live: 25R2 (reproduced three times). Documented limitation, undocumented failure mode.*
+- **Same failure on a grouped GI:** a `$filter` on an **aggregated** column of a GI with grouping also
+  returns an **empty-body 200**. Filtering on the grouped/plain columns (including compound
+  `A or (B and C)`) works; apply the rest after fetching. *Verified live: 25R2, 2026-10-06.*
+- A grouped GI also can't pass a **formula** column through from an inner GI ("Cannot perform an aggregate
+  function on an expression containing an aggregate…"). *(Stated in source; no verification date.)*
 
 ### GI OData property names come from **display names** — the *order* of columns is undocumented `[UNIVERSAL]`
 - **Documented naming rule** (*Preparation of an Inquiry for Exposure* → "Supporting the OData
@@ -165,10 +231,28 @@ GI return nothing / the wrong columns. See the tag legend in [SKILL.md](./SKILL.
   confirm each property returns the kind of value you expect before relying on a mapping.
 - *Verified live: 25R2; naming and key rules documented in both the 25R2 and 26R1 doc sets
   (checked 2026-08-31).*
+- **Empirically, Caption DOES change the property name.** Setting a Results Grid Caption renames the
+  **live** OData property (consumers keyed on the old name break), and a typo in a Caption becomes the
+  property name. A Caption set to *exactly the name OData already reports* is a no-op (`$metadata`
+  byte-identical) that pins the name against later design edits.
+- **`_N` collision suffixes are positional:** the earlier grid row keeps the bare name; a Caption on a
+  collision row must carry the suffix literally (`ReferenceNbr_2`).
+- **Hoisting isn't limited to declared keys** (one GI showed a clean 3-column hoist while `$metadata`
+  declared no leading keys), and **some active design rows produce no property at all** (cause not
+  established) — every later column then shifts.
+- **Key columns auto-exposed from JOINED tables are NULL whenever the join finds no match** — never use one
+  as a row id; use the column the design selects from the base table.
+- An ERP-side read-back of stored column descriptions can't detect a mis-paired column; verify through the
+  delivered property names and real values. *Verified live: 25R2, 2026-07/09.*
 
 ### `getOData` must follow `@odata.nextLink` `[UNIVERSAL]`
 - OData GI feeds **page**. A reader that ignores `@odata.nextLink` silently truncates. Accumulate all
   pages (a `$top` caller intentionally gets one capped page).
+- **Not every GI pages.** A large parameter-free GI with the Results-grid Top-N cleared returned its
+  **entire** result (tens of thousands of rows, many MB) in one response with **no** `@odata.nextLink` — a nextLink loop never
+  iterates, and parsing the body can exceed a memory-capped runtime. `$top`/`$skip` both work there.
+  **Do:** page yourself (`$top`/`$skip`) and stop on the first short page. On contract REST, `$skip` paging
+  was stable with `$orderby` on the natural key. *Verified live: 25R2, 2026-08.*
 
 ### Column names are **case/spelling-exact** and GIQL `WHERE` matches **DAC codes**, not labels `[UNIVERSAL]`
 - Filter/`WHERE` on the stored **code** value (e.g. an order type `'RO'`), not the UI **label**
@@ -186,6 +270,10 @@ GI return nothing / the wrong columns. See the tag legend in [SKILL.md](./SKILL.
   UTC on write, as **exact inverses** so a round-tripped write lands on the slot it started from. The
   display zone is a single instance-wide value (`[TENANT]`; confirm it's not per-branch/per-record).
 - *Verified live: 25R2, 2026-07.*
+- **Range filters too.** A `$filter` window of local dates must be converted to UTC instants. Stamping bare
+  local dates with `Z` (`le <to>T23:59:59Z`) silently drops every row in the last <UTC-offset> hours of the
+  final day. Keep display, write-back and query-bound conversion in **one** shared helper.
+  *Verified live: 25R2, 2026-07.*
 
 ### `substringof` / contains filters can silently match nothing `[UNIVERSAL]`
 - Text-contains filters over GI feeds are finicky (field must be a queryable string column). If a
@@ -218,3 +306,23 @@ GI return nothing / the wrong columns. See the tag legend in [SKILL.md](./SKILL.
 ### Column set of a GI is `[TENANT]` — confirm per instance
 - A GI's exact **name and column set** are instance configuration. Never hardcode GI names in code —
   read them from config/env. Confirm the columns live per tenant before depending on them.
+
+### GIQL is **DAC-land**: contract field names don't transfer, and `WHERE` has no `LIKE` `[UNIVERSAL]`
+- Contract-entity field names are endpoint *mappings*, not DAC fields: the shipment line's order link is
+  `SOShipLine.OrigOrderNbr` (there is **no** `SOShipLine.OrderNbr`), and `OrigOrderQty` is obsolete — take
+  the ordered qty from a `SOLine` join.
+- GIQL `WHERE` supports `IS NULL`, `AND`/`OR`, comparisons and parentheses, with **no `LIKE`**. Put
+  substring matches on the GI's **Conditions** tab (*Contains*, plus OR grouping), whose labelled
+  dropdowns/date picker also sidestep the status-code-vs-label, boolean and date-literal traps.
+- A LEFT JOIN on a wrong field name yields **NULL silently**, not an error — confirm join fields in the GI
+  editor's field list.
+- *Verified: SOShipLine field names against the DAC, 25R2, 2026-08-04. No-`LIKE` per documented GIQL support. LEFT-JOIN-NULL stated, not probed.*
+
+### A GI whose name contains `/` is unreachable over OData — though `$metadata` lists it `[UNIVERSAL]`
+- `/` is a URL path separator, so `/api/odata/gi/<name with />` returns **404** and the GI never works as an
+  entity set, yet `$metadata` still carries its EntityType (tooling that matches names after stripping
+  punctuation will register a GI no call can reach). If the GI is parameterized, its `_WithParameters`
+  function URL — whose name has the punctuation stripped — should work (unverified).
+- **Do:** keep OData-exposed GI names free of `/` (and, as a precaution, `\ ? # % ( )`). Rename rather than
+  escape, after checking what references the GI.
+- *Verified live: 25R2, 2026-09-02 (`/` only).*

@@ -44,23 +44,34 @@ shifts across releases, so an unverified claim is a hypothesis, not a fact.
   `api:concurrent_access`) and why "not required" still costs a seat, the connected app as the ONLY tenant binding
   under oauth, seat-neutral session refresh, token/session lifetimes, inactivity
   timeout scope, cookie reuse, account lockout, grant-cache flush, the `/t/{tenant}` Login Name
-  segment, and why the GI feed rejects a browser session.
+  segment, why the GI feed rejects a browser session, Auth Code `offline_access`/`api` scopes and
+  refresh rotation, OIDC claims (no roles), no users/roles API, and 401-before-routing on SaaS.
 - **[entities-actions.md](./entities-actions.md)** — per-entity field-name traps, PXAction
   names (Release / ConfirmShipment / FinishCounting), the post-Update-IN CorrectShipment lockout,
   keyed-GET-not-$filter, why a `$top=1` probe is not cheap on a delegate-heavy entity, the
-  file-attach path, long-op polling, PO number padding, drop-ship detection, mandatory Project,
-  reason-code usage restrictions.
+  file-attach path and file deletion, long-op polling, PO number padding, drop-ship detection, mandatory
+  Project, reason-code usage restrictions, the CannotOptimize family + silent-empty mode, `substringof eq true`,
+  attributes (ID vs label, date-only), IN header vs line branch, `PX-CbApiBranch`, shipment qty raises,
+  Field Service appointment writes, Project Quote endpoint gap.
 - **[giql-odata.md](./giql-odata.md)** — CannotOptimizeException, why some reads must ride a GI,
   $select+$expand drops, parameterized GIs (base name ignores parameters; `_WithParameters` binds
   them; misspelled names silently ignored; Is Required ⇔ `Nullable="false"`; defaults; date-time
-  aliases; 25R2 vs 26R2 date types), `$count` on 26R2, calculated-column filters returning an
+  aliases; 25R2 vs 26R2 date types), `$count` on 26R2, v4-vs-v3 dialects, row-level security filtering
+  silently, DAC-based OData, filter cost and right-padding, `/` in GI names, GIQL vs contract field names,
+  calculated-column filters returning an
   empty-body 200, display-name-derived property naming vs undocumented column order, MCP column
   renames, @odata.nextLink paging, empty-result cache poisoning.
 - **[builtin-mcp.md](./builtin-mcp.md)** — Acumatica's own 2026 R2 MCP server (setup, GI-only
   tools, opaque errors, unenforced parameters, row differences vs OData) and the license-gated
   26R1+ "Description for AI" fields.
+- **[install-upgrade.md](./install-upgrade.md)** — site-wide customization publishing, self-hosted
+  install (RabbitMQ-as-SYSTEM hang), patch levels and PatchTool, snapshot-restore traps (silent partial
+  import, a restored tenant that starts sending), republishing customizations, the 25R2 → 26R2 upgrade and
+  its republish blockers, reverse-proxy Host header.
 - **[writes-idempotency.md](./writes-idempotency.md)** — the silent-200-on-revoked-write trap,
-  endpoint detail collection-vs-object mapping, idempotency, operator attribution, money precision.
+  genuinely unwritable fields (and the PI line note's real path), PI zero writes, confirmed-shipment locks,
+  detail rows by `id` + base-URL PUT, endpoint detail collection-vs-object mapping, idempotency and
+  PUT-as-upsert, operator attribution, money precision.
 - **[reference-vs-tenant.md](./reference-vs-tenant.md)** — the classification rule + a checklist
   of what is ALWAYS tenant-specific. Read this before adding an entry or porting a fact.
 
